@@ -1,0 +1,27 @@
+{
+  "name": "wallet-address-exporter",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@reown/appkit": "^1.8.23",
+    "@reown/appkit-adapter-bitcoin": "^1.8.23",
+    "@reown/appkit-adapter-solana": "^1.8.23",
+    "@reown/appkit-adapter-ton": "^1.8.23",
+    "@reown/appkit-adapter-tron": "^1.8.23",
+    "@reown/appkit-adapter-wagmi": "^1.8.23",
+    "@tronweb3/tronwallet-adapter-tronlink": "^1.2.0",
+    "viem": "^2.45.0",
+    "wagmi": "^2.16.0",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-basic-ssl": "^2.1.0",
+    "vite": "^7.1.0"
+  }
+}

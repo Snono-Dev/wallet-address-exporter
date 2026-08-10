@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0b1020" />
+    <meta name="description" content="Export wallet accounts to Excel using Reown AppKit." />
+    <title>Wallet Address Exporter</title>
+  </head>
+  <body>
+    <main class="app">
+      <header class="hero">
+        <div>
+          <div class="eyebrow">WALLET ADDRESS EXPORTER</div>
+          <h1>استخراج عناوين المحفظة</h1>
+          <p>
+            اربط محفظتك عبر WalletConnect/Reown، واعرض الحسابات التي تسمح
+            المحفظة بمشاركتها ثم صدّرها إلى Excel.
+          </p>
+        </div>
+        <div class="security">🔒 لا نطلب Seed Phrase أو Private Key</div>
+      </header>
+
+      <section class="card controls">
+        <button id="connectButton" class="primary">🔗 ربط المحفظة</button>
+        <button id="exportButton" class="success" disabled>📊 تصدير Excel</button>
+        <button id="clearButton" class="secondary">🗑️ مسح</button>
+        <span id="status" class="status">غير متصل</span>
+      </section>
+
+      <section class="card">
+        <div class="table-head">
+          <div>
+            <h2>العناوين</h2>
+            <span id="count">0</span> سجل
+          </div>
+          <div class="note">
+            Memo/Tag يُعرض فقط عندما توفره جهة الاتصال؛ لن يتم اختراعه.
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Currency</th>
+                <th>Network</th>
+                <th>Address</th>
+                <th>Memo</th>
+              </tr>
+            </thead>
+            <tbody id="addressTable">
+              <tr>
+                <td colspan="4" class="empty">لم يتم العثور على عناوين بعد.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card privacy">
+        <h2>الخصوصية</h2>
+        <ul>
+          <li>لا توجد Seed Phrase في المشروع.</li>
+          <li>لا توجد Private Keys.</li>
+          <li>ملف Excel يُنشأ محليًا في المتصفح.</li>
+          <li>التطبيق لا يحتوي Backend أو قاعدة بيانات.</li>
+        </ul>
+      </section>
+    </main>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
