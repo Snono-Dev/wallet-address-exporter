@@ -64,19 +64,15 @@ const evmNetworks = [
 const networks = [
   ...evmNetworks,
 
-  // Solana
   solana,
 
-  // Bitcoin
   bitcoin,
   bitcoinTestnet,
   bitcoinSignet,
 
-  // TON
   ton,
   tonTestnet,
 
-  // TRON
   tronMainnet,
   tronShastaTestnet
 ]
@@ -139,9 +135,10 @@ const modal = createAppKit({
 
   metadata: {
     name: 'Wallet Address Exporter',
-    description: 'Export wallet accounts to Excel',
 
-    // Must match the deployed website origin/path
+    description:
+      'Export wallet addresses and account information to Excel',
+
     url: APP_URL,
 
     icons: []
@@ -161,13 +158,17 @@ const modal = createAppKit({
 
 let records = []
 
+let wasConnected = false
+
 
 // ============================================================
 // STATUS
 // ============================================================
 
 function setStatus(message) {
-  status.textContent = message
+  if (status) {
+    status.textContent = message
+  }
 }
 
 
@@ -176,24 +177,40 @@ function setStatus(message) {
 // ============================================================
 
 function addRecord(record) {
-  if (!record || !record.address) return
+
+  if (!record || !record.address) {
+    return
+  }
 
   const normalized = {
     Currency: record.currency || 'Unknown',
+
     Network: record.network || 'Unknown',
+
     Address: String(record.address),
-    Memo: record.memo ? String(record.memo) : ''
+
+    Memo: record.memo
+      ? String(record.memo)
+      : ''
   }
 
-  const duplicate = records.some((item) =>
-    item.Currency === normalized.Currency &&
-    item.Network === normalized.Network &&
-    item.Address === normalized.Address &&
-    item.Memo === normalized.Memo
-  )
+
+  const duplicate = records.some((item) => {
+
+    return (
+      item.Currency === normalized.Currency &&
+      item.Network === normalized.Network &&
+      item.Address === normalized.Address &&
+      item.Memo === normalized.Memo
+    )
+
+  })
+
 
   if (!duplicate) {
+
     records.push(normalized)
+
     render()
   }
 }
@@ -204,60 +221,104 @@ function addRecord(record) {
 // ============================================================
 
 function currencyForEip155(chainId) {
+
   const id = Number(chainId)
 
   const map = {
-    1: ['ETH', 'Ethereum'],
-    10: ['ETH', 'Optimism'],
-    56: ['BNB', 'BNB Smart Chain'],
-    137: ['POL', 'Polygon'],
-    42161: ['ETH', 'Arbitrum One'],
-    8453: ['ETH', 'Base'],
-    43114: ['AVAX', 'Avalanche'],
-    534352: ['ETH', 'Scroll']
+
+    1: [
+      'ETH',
+      'Ethereum'
+    ],
+
+    10: [
+      'ETH',
+      'Optimism'
+    ],
+
+    56: [
+      'BNB',
+      'BNB Smart Chain'
+    ],
+
+    137: [
+      'POL',
+      'Polygon'
+    ],
+
+    42161: [
+      'ETH',
+      'Arbitrum One'
+    ],
+
+    8453: [
+      'ETH',
+      'Base'
+    ],
+
+    43114: [
+      'AVAX',
+      'Avalanche'
+    ],
+
+    534352: [
+      'ETH',
+      'Scroll'
+    ]
   }
 
-  return map[id] || [
-    'EVM',
-    `EVM Network ${id || ''}`.trim()
-  ]
+
+  return (
+    map[id] || [
+      'EVM',
+      `EVM Network ${id || ''}`.trim()
+    ]
+  )
 }
 
 
 // ============================================================
-// PARSE CAIP-10
+// PARSE CAIP-10 ACCOUNT
 // ============================================================
 
 function parseAccount(account) {
-  /*
-   * CAIP-10:
-   *
-   * namespace:reference:address
-   *
-   * Examples:
-   *
-   * eip155:1:0xabc...
-   * solana:mainnet:ABC...
-   * bip122:...:bc1...
-   * ton:mainnet:EQ...
-   * tron:0x2b6653dc:TX...
-   */
 
   if (typeof account !== 'string') {
     return null
   }
 
+
   const first = account.indexOf(':')
+
   const last = account.lastIndexOf(':')
 
-  if (first <= 0 || last <= first) {
+
+  if (
+    first <= 0 ||
+    last <= first
+  ) {
     return null
   }
 
+
   return {
-    namespace: account.slice(0, first),
-    reference: account.slice(first + 1, last),
-    address: account.slice(last + 1)
+
+    namespace:
+      account.slice(
+        0,
+        first
+      ),
+
+    reference:
+      account.slice(
+        first + 1,
+        last
+      ),
+
+    address:
+      account.slice(
+        last + 1
+      )
   }
 }
 
@@ -267,35 +328,57 @@ function parseAccount(account) {
 // ============================================================
 
 function addFromCaip10(account) {
-  const parsed = parseAccount(account)
 
-  if (!parsed) return
+  const parsed =
+    parseAccount(account)
 
 
-  // ----------------------------------------------------------
+  if (!parsed) {
+    return
+  }
+
+
+  // ==========================================================
   // EVM
-  // ----------------------------------------------------------
+  // ==========================================================
 
-  if (parsed.namespace === 'eip155') {
-    const [currency, network] =
-      currencyForEip155(parsed.reference)
+  if (
+    parsed.namespace === 'eip155'
+  ) {
+
+    const [
+      currency,
+      network
+    ] = currencyForEip155(
+      parsed.reference
+    )
+
 
     addRecord({
+
       currency,
+
       network,
-      address: parsed.address
+
+      address:
+        parsed.address
     })
+
 
     return
   }
 
 
-  // ----------------------------------------------------------
+  // ==========================================================
   // SOLANA
-  // ----------------------------------------------------------
+  // ==========================================================
 
-  if (parsed.namespace === 'solana') {
+  if (
+    parsed.namespace === 'solana'
+  ) {
+
     addRecord({
+
       currency: 'SOL',
 
       network:
@@ -303,84 +386,121 @@ function addFromCaip10(account) {
           ? 'Solana'
           : `Solana (${parsed.reference})`,
 
-      address: parsed.address
+      address:
+        parsed.address
     })
+
 
     return
   }
 
 
-  // ----------------------------------------------------------
+  // ==========================================================
   // BITCOIN
-  // ----------------------------------------------------------
+  // ==========================================================
 
-  if (parsed.namespace === 'bip122') {
+  if (
+    parsed.namespace === 'bip122'
+  ) {
+
     const bitcoinMainnetGenesis =
-      '000000000019d6689c085ae165831e934'
+      '000000000019d6689c085ae165831e93'
+
 
     const network =
-      parsed.reference === bitcoinMainnetGenesis
+      parsed.reference ===
+      bitcoinMainnetGenesis
+
         ? 'Bitcoin'
+
         : 'Bitcoin (test/signet)'
 
+
     addRecord({
+
       currency: 'BTC',
+
       network,
-      address: parsed.address
+
+      address:
+        parsed.address
     })
+
 
     return
   }
 
 
-  // ----------------------------------------------------------
+  // ==========================================================
   // TON
-  // ----------------------------------------------------------
+  // ==========================================================
 
-  if (parsed.namespace === 'ton') {
+  if (
+    parsed.namespace === 'ton'
+  ) {
+
     addRecord({
+
       currency: 'TON',
 
       network:
-        parsed.reference.includes('test')
+        parsed.reference.includes(
+          'test'
+        )
           ? 'TON Testnet'
           : 'TON',
 
-      address: parsed.address
+      address:
+        parsed.address
     })
+
 
     return
   }
 
 
-  // ----------------------------------------------------------
+  // ==========================================================
   // TRON
-  // ----------------------------------------------------------
+  // ==========================================================
 
-  if (parsed.namespace === 'tron') {
+  if (
+    parsed.namespace === 'tron'
+  ) {
+
     addRecord({
+
       currency: 'TRX',
 
       network:
-        parsed.reference.includes('shasta')
+        parsed.reference.includes(
+          'shasta'
+        )
           ? 'TRON Shasta Testnet'
           : 'TRON',
 
-      address: parsed.address
+      address:
+        parsed.address
     })
+
 
     return
   }
 
 
-  // ----------------------------------------------------------
-  // UNKNOWN NAMESPACE
-  // ----------------------------------------------------------
+  // ==========================================================
+  // UNKNOWN
+  // ==========================================================
 
   addRecord({
-    currency: parsed.namespace.toUpperCase(),
-    network: parsed.reference,
-    address: parsed.address
+
+    currency:
+      parsed.namespace.toUpperCase(),
+
+    network:
+      parsed.reference,
+
+    address:
+      parsed.address
   })
 }
 
@@ -390,14 +510,22 @@ function addFromCaip10(account) {
 // ============================================================
 
 function collectSessionAccounts() {
+
   try {
-    const provider = modal.getWalletProvider?.()
-    const providerType = modal.getWalletProviderType?.()
+
+    const provider =
+      modal.getWalletProvider?.()
+
+
+    const providerType =
+      modal.getWalletProviderType?.()
+
 
     console.debug(
       'Provider type:',
       providerType
     )
+
 
     console.debug(
       'Provider:',
@@ -405,12 +533,9 @@ function collectSessionAccounts() {
     )
 
 
-    /*
-     * Some WalletConnect providers expose their
-     * active session through one of these objects.
-     *
-     * This is intentionally treated as optional.
-     */
+    // --------------------------------------------------------
+    // Try WalletConnect session
+    // --------------------------------------------------------
 
     const session =
       provider?.session ||
@@ -423,49 +548,81 @@ function collectSessionAccounts() {
       session?.namespaces || {}
 
 
-    /*
-     * Read all CAIP-10 accounts exposed by the session.
-     */
+    for (
+      const namespace
+      of Object.values(namespaces)
+    ) {
 
-    for (const namespace of Object.values(namespaces)) {
-      const accounts = namespace?.accounts || []
+      const accounts =
+        namespace?.accounts || []
 
-      for (const account of accounts) {
-        addFromCaip10(account)
+
+      for (
+        const account
+        of accounts
+      ) {
+
+        addFromCaip10(
+          account
+        )
       }
     }
 
 
-    /*
-     * Fallback:
-     *
-     * AppKit exposes the currently active address.
-     */
+    // --------------------------------------------------------
+    // AppKit fallback
+    // --------------------------------------------------------
 
-    if (modal.getIsConnected?.()) {
+    if (
+      modal.getIsConnected?.()
+    ) {
+
       const address =
         modal.getAddress?.() ||
         provider?.accounts?.[0] ||
         provider?.selectedAddress
 
+
       if (address) {
+
         const chainId =
           modal.getChainId?.() ||
-          modal.getState?.()?.selectedNetworkId
+          modal.getState?.()
+            ?.selectedNetworkId
 
-        if (typeof chainId === 'number') {
-          const [currency, network] =
-            currencyForEip155(chainId)
+
+        if (
+          typeof chainId === 'number'
+        ) {
+
+          const [
+            currency,
+            network
+          ] =
+            currencyForEip155(
+              chainId
+            )
+
 
           addRecord({
+
             currency,
+
             network,
+
             address
           })
+
         } else {
+
           addRecord({
+
             currency: 'Unknown',
-            network: providerType || 'Connected wallet',
+
+            network:
+              providerType ||
+              'Connected wallet',
+
             address
           })
         }
@@ -473,6 +630,7 @@ function collectSessionAccounts() {
     }
 
   } catch (error) {
+
     console.error(
       'Error collecting wallet accounts:',
       error
@@ -485,104 +643,133 @@ function collectSessionAccounts() {
 // CONNECT BUTTON
 // ============================================================
 
-connectButton.addEventListener(
-  'click',
-  async () => {
+if (connectButton) {
 
-    if (
-      !PROJECT_ID ||
-      PROJECT_ID === 'YOUR_REOWN_PROJECT_ID'
-    ) {
-      setStatus(
-        'ضع Reown Project ID أولًا في src/config.js'
-      )
+  connectButton.addEventListener(
+    'click',
+    async () => {
 
-      return
+      try {
+
+        console.debug(
+          'Opening AppKit...'
+        )
+
+
+        setStatus(
+          'جاري فتح WalletConnect...'
+        )
+
+
+        await modal.open({
+          view: 'Connect'
+        })
+
+
+        console.debug(
+          'AppKit open() completed'
+        )
+
+
+      } catch (error) {
+
+        console.error(
+          'Failed to open AppKit:',
+          error
+        )
+
+
+        setStatus(
+          `تعذر فتح WalletConnect: ${
+            error?.message ||
+            error
+          }`
+        )
+      }
     }
-
-
-    try {
-
-      setStatus(
-        'جاري فتح نافذة الاتصال...'
-      )
-
-
-      /*
-       * Open AppKit connection modal.
-       */
-
-      await modal.open({
-        view: 'Connect'
-      })
-
-    } catch (error) {
-
-      console.error(
-        'Failed to open AppKit:',
-        error
-      )
-
-      setStatus(
-        `تعذر فتح المحفظة: ${
-          error?.message || error
-        }`
-      )
-    }
-  }
-)
+  )
+}
 
 
 // ============================================================
 // APPKIT STATE
 // ============================================================
 
-/*
- * IMPORTANT:
- *
- * We intentionally use subscribeState instead of
- * subscribeProvider here.
- *
- * This prevents our application code from depending
- * directly on the provider subscription API.
- */
+if (
+  typeof modal.subscribeState ===
+  'function'
+) {
 
-if (typeof modal.subscribeState === 'function') {
+  modal.subscribeState(
+    (state) => {
 
-  modal.subscribeState((state) => {
-
-    console.debug(
-      'AppKit state:',
-      state
-    )
-
-
-    /*
-     * If the modal is closed, don't change
-     * connection status unnecessarily.
-     */
-
-    if (!modal.getIsConnected?.()) {
-      setStatus('غير متصل')
-      return
-    }
-
-
-    /*
-     * Give the adapter a short moment to expose
-     * the connected account/session.
-     */
-
-    setTimeout(() => {
-
-      collectSessionAccounts()
-
-      setStatus(
-        `متصل — ${records.length} عنوان`
+      console.debug(
+        'AppKit state:',
+        state
       )
 
-    }, 300)
-  })
+
+      const connected =
+        modal.getIsConnected?.() === true
+
+
+      // ------------------------------------------------------
+      // CONNECTED
+      // ------------------------------------------------------
+
+      if (connected) {
+
+        wasConnected = true
+
+
+        setTimeout(
+          () => {
+
+            collectSessionAccounts()
+
+
+            setStatus(
+              `متصل — ${
+                records.length
+              } عنوان`
+            )
+
+          },
+          300
+        )
+
+
+        return
+      }
+
+
+      // ------------------------------------------------------
+      // DISCONNECTED AFTER REAL CONNECTION
+      // ------------------------------------------------------
+
+      if (wasConnected) {
+
+        setStatus(
+          'غير متصل'
+        )
+
+
+        return
+      }
+
+
+      // ------------------------------------------------------
+      // INITIAL STATE
+      //
+      // IMPORTANT:
+      // Don't display "غير متصل" here.
+      // ------------------------------------------------------
+
+      console.debug(
+        'AppKit initialized — waiting for connection'
+      )
+    }
+  )
 
 } else {
 
@@ -597,64 +784,118 @@ if (typeof modal.subscribeState === 'function') {
 // ============================================================
 
 function escapeHtml(value) {
+
   return String(value)
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#039;')
+
+    .replaceAll(
+      '&',
+      '&amp;'
+    )
+
+    .replaceAll(
+      '<',
+      '&lt;'
+    )
+
+    .replaceAll(
+      '>',
+      '&gt;'
+    )
+
+    .replaceAll(
+      '"',
+      '&quot;'
+    )
+
+    .replaceAll(
+      "'",
+      '&#039;'
+    )
 }
 
 
 // ============================================================
-// RENDER TABLE
+// RENDER
 // ============================================================
 
 function render() {
 
-  count.textContent = records.length
+  if (count) {
+
+    count.textContent =
+      records.length
+  }
+
+
+  if (!table) {
+    return
+  }
 
 
   if (!records.length) {
 
     table.innerHTML = `
       <tr>
-        <td colspan="4" class="empty">
+        <td
+          colspan="4"
+          class="empty"
+        >
           لم يتم العثور على عناوين بعد.
         </td>
       </tr>
     `
 
-    exportButton.disabled = true
+
+    if (exportButton) {
+      exportButton.disabled = true
+    }
+
 
     return
   }
 
 
-  table.innerHTML = records
-    .map((item) => `
-      <tr>
-        <td>
-          ${escapeHtml(item.Currency)}
-        </td>
+  table.innerHTML =
+    records
+      .map(
+        (item) => `
+          <tr>
 
-        <td>
-          ${escapeHtml(item.Network)}
-        </td>
+            <td>
+              ${escapeHtml(
+                item.Currency
+              )}
+            </td>
 
-        <td class="address">
-          ${escapeHtml(item.Address)}
-        </td>
+            <td>
+              ${escapeHtml(
+                item.Network
+              )}
+            </td>
 
-        <td>
-          ${escapeHtml(item.Memo)}
-        </td>
-      </tr>
-    `)
-    .join('')
+            <td class="address">
+              ${escapeHtml(
+                item.Address
+              )}
+            </td>
+
+            <td>
+              ${escapeHtml(
+                item.Memo
+              )}
+            </td>
+
+          </tr>
+        `
+      )
+      .join('')
 
 
-  exportButton.disabled = false
+  if (exportButton) {
+
+    exportButton.disabled =
+      false
+  }
 }
 
 
@@ -662,67 +903,91 @@ function render() {
 // EXPORT EXCEL
 // ============================================================
 
-exportButton.addEventListener(
-  'click',
-  () => {
+if (exportButton) {
 
-    if (!records.length) {
-      return
+  exportButton.addEventListener(
+    'click',
+    () => {
+
+      if (!records.length) {
+        return
+      }
+
+
+      const worksheet =
+        XLSX.utils.json_to_sheet(
+          records
+        )
+
+
+      worksheet['!cols'] = [
+
+        {
+          wch: 15
+        },
+
+        {
+          wch: 28
+        },
+
+        {
+          wch: 65
+        },
+
+        {
+          wch: 30
+        }
+      ]
+
+
+      const workbook =
+        XLSX.utils.book_new()
+
+
+      XLSX.utils.book_append_sheet(
+        workbook,
+        worksheet,
+        'Wallet Addresses'
+      )
+
+
+      XLSX.writeFile(
+        workbook,
+        'wallet-addresses.xlsx'
+      )
     }
-
-
-    const worksheet =
-      XLSX.utils.json_to_sheet(records)
-
-
-    worksheet['!cols'] = [
-      { wch: 15 },
-      { wch: 28 },
-      { wch: 65 },
-      { wch: 30 }
-    ]
-
-
-    const workbook =
-      XLSX.utils.book_new()
-
-
-    XLSX.utils.book_append_sheet(
-      workbook,
-      worksheet,
-      'Wallet Addresses'
-    )
-
-
-    XLSX.writeFile(
-      workbook,
-      'wallet-addresses.xlsx'
-    )
-  }
-)
+  )
+}
 
 
 // ============================================================
 // CLEAR
 // ============================================================
 
-clearButton.addEventListener(
-  'click',
-  () => {
+if (clearButton) {
 
-    records = []
+  clearButton.addEventListener(
+    'click',
+    () => {
 
-    render()
+      records = []
 
-    setStatus(
-      'تم مسح النتائج.'
-    )
-  }
-)
+      render()
+
+      setStatus(
+        'تم مسح النتائج.'
+      )
+    }
+  )
+}
 
 
 // ============================================================
-// INITIAL RENDER
+// INITIAL STATE
 // ============================================================
 
 render()
+
+setStatus(
+  'جاهز للاتصال بالمحفظة'
+)
