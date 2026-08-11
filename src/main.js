@@ -29,6 +29,7 @@ import { TronLinkAdapter } from '@tronweb3/tronwallet-adapter-tronlink'
 import * as XLSX from 'xlsx'
 
 import { PROJECT_ID, APP_URL } from './config'
+
 import './style.css'
 
 
@@ -61,6 +62,7 @@ const evmNetworks = [
   scroll
 ]
 
+
 const networks = [
   ...evmNetworks,
 
@@ -83,6 +85,7 @@ const networks = [
 // ============================================================
 
 // EVM
+
 const wagmiAdapter = new WagmiAdapter({
   projectId: PROJECT_ID,
   networks: evmNetworks
@@ -90,22 +93,26 @@ const wagmiAdapter = new WagmiAdapter({
 
 
 // Bitcoin
+
 const bitcoinAdapter = new BitcoinAdapter({
   projectId: PROJECT_ID
 })
 
 
 // Solana
+
 const solanaAdapter = new SolanaAdapter()
 
 
 // TON
+
 const tonAdapter = new TonAdapter({
   projectId: PROJECT_ID
 })
 
 
 // TRON
+
 const tronAdapter = new TronAdapter({
   walletAdapters: [
     new TronLinkAdapter({
@@ -121,6 +128,7 @@ const tronAdapter = new TronAdapter({
 // ============================================================
 
 const modal = createAppKit({
+
   adapters: [
     wagmiAdapter,
     solanaAdapter,
@@ -134,6 +142,7 @@ const modal = createAppKit({
   projectId: PROJECT_ID,
 
   metadata: {
+
     name: 'Wallet Address Exporter',
 
     description:
@@ -145,8 +154,11 @@ const modal = createAppKit({
   },
 
   features: {
+
     analytics: false,
+
     email: false,
+
     socials: []
   }
 })
@@ -166,9 +178,13 @@ let wasConnected = false
 // ============================================================
 
 function setStatus(message) {
+
   if (status) {
+
     status.textContent = message
+
   }
+
 }
 
 
@@ -178,33 +194,56 @@ function setStatus(message) {
 
 function addRecord(record) {
 
-  if (!record || !record.address) {
+  if (!record) {
     return
   }
 
-  const normalized = {
-    Currency: record.currency || 'Unknown',
 
-    Network: record.network || 'Unknown',
-
-    Address: String(record.address),
-
-    Memo: record.memo
-      ? String(record.memo)
-      : ''
+  if (!record.address) {
+    return
   }
 
 
-  const duplicate = records.some((item) => {
+  const normalized = {
 
-    return (
-      item.Currency === normalized.Currency &&
-      item.Network === normalized.Network &&
-      item.Address === normalized.Address &&
-      item.Memo === normalized.Memo
-    )
+    Currency:
+      record.currency ||
+      'Unknown',
 
-  })
+    Network:
+      record.network ||
+      'Unknown',
+
+    Address:
+      String(record.address),
+
+    Memo:
+      record.memo
+        ? String(record.memo)
+        : ''
+  }
+
+
+  const duplicate =
+    records.some((item) => {
+
+      return (
+
+        item.Currency ===
+          normalized.Currency &&
+
+        item.Network ===
+          normalized.Network &&
+
+        item.Address ===
+          normalized.Address &&
+
+        item.Memo ===
+          normalized.Memo
+
+      )
+
+    })
 
 
   if (!duplicate) {
@@ -212,17 +251,20 @@ function addRecord(record) {
     records.push(normalized)
 
     render()
+
   }
+
 }
 
 
 // ============================================================
-// EVM NETWORK → CURRENCY
+// EVM NETWORK INFORMATION
 // ============================================================
 
 function currencyForEip155(chainId) {
 
   const id = Number(chainId)
+
 
   const map = {
 
@@ -265,39 +307,55 @@ function currencyForEip155(chainId) {
       'ETH',
       'Scroll'
     ]
+
   }
 
 
   return (
-    map[id] || [
+
+    map[id] ||
+
+    [
       'EVM',
       `EVM Network ${id || ''}`.trim()
     ]
+
   )
+
 }
 
 
 // ============================================================
-// PARSE CAIP-10 ACCOUNT
+// CAIP-10 PARSER
 // ============================================================
 
 function parseAccount(account) {
 
-  if (typeof account !== 'string') {
+  if (
+    typeof account !==
+    'string'
+  ) {
+
     return null
+
   }
 
 
-  const first = account.indexOf(':')
+  const first =
+    account.indexOf(':')
 
-  const last = account.lastIndexOf(':')
+
+  const last =
+    account.lastIndexOf(':')
 
 
   if (
     first <= 0 ||
     last <= first
   ) {
+
     return null
+
   }
 
 
@@ -319,12 +377,14 @@ function parseAccount(account) {
       account.slice(
         last + 1
       )
+
   }
+
 }
 
 
 // ============================================================
-// ADD CAIP-10 ACCOUNT
+// CAIP-10 ACCOUNT → RECORD
 // ============================================================
 
 function addFromCaip10(account) {
@@ -343,15 +403,17 @@ function addFromCaip10(account) {
   // ==========================================================
 
   if (
-    parsed.namespace === 'eip155'
+    parsed.namespace ===
+    'eip155'
   ) {
 
     const [
       currency,
       network
-    ] = currencyForEip155(
-      parsed.reference
-    )
+    ] =
+      currencyForEip155(
+        parsed.reference
+      )
 
 
     addRecord({
@@ -362,6 +424,7 @@ function addFromCaip10(account) {
 
       address:
         parsed.address
+
     })
 
 
@@ -374,20 +437,26 @@ function addFromCaip10(account) {
   // ==========================================================
 
   if (
-    parsed.namespace === 'solana'
+    parsed.namespace ===
+    'solana'
   ) {
 
     addRecord({
 
-      currency: 'SOL',
+      currency:
+        'SOL',
 
       network:
-        parsed.reference === 'mainnet'
+        parsed.reference ===
+        'mainnet'
+
           ? 'Solana'
+
           : `Solana (${parsed.reference})`,
 
       address:
         parsed.address
+
     })
 
 
@@ -400,30 +469,33 @@ function addFromCaip10(account) {
   // ==========================================================
 
   if (
-    parsed.namespace === 'bip122'
+    parsed.namespace ===
+    'bip122'
   ) {
 
-    const bitcoinMainnetGenesis =
+    const bitcoinMainnet =
       '000000000019d6689c085ae165831e93'
 
 
     const network =
       parsed.reference ===
-      bitcoinMainnetGenesis
+      bitcoinMainnet
 
         ? 'Bitcoin'
 
-        : 'Bitcoin (test/signet)'
+        : 'Bitcoin Testnet / Signet'
 
 
     addRecord({
 
-      currency: 'BTC',
+      currency:
+        'BTC',
 
       network,
 
       address:
         parsed.address
+
     })
 
 
@@ -436,22 +508,27 @@ function addFromCaip10(account) {
   // ==========================================================
 
   if (
-    parsed.namespace === 'ton'
+    parsed.namespace ===
+    'ton'
   ) {
 
     addRecord({
 
-      currency: 'TON',
+      currency:
+        'TON',
 
       network:
-        parsed.reference.includes(
-          'test'
-        )
+        parsed.reference
+          .toLowerCase()
+          .includes('test')
+
           ? 'TON Testnet'
+
           : 'TON',
 
       address:
         parsed.address
+
     })
 
 
@@ -464,22 +541,27 @@ function addFromCaip10(account) {
   // ==========================================================
 
   if (
-    parsed.namespace === 'tron'
+    parsed.namespace ===
+    'tron'
   ) {
 
     addRecord({
 
-      currency: 'TRX',
+      currency:
+        'TRX',
 
       network:
-        parsed.reference.includes(
-          'shasta'
-        )
+        parsed.reference
+          .toLowerCase()
+          .includes('shasta')
+
           ? 'TRON Shasta Testnet'
+
           : 'TRON',
 
       address:
         parsed.address
+
     })
 
 
@@ -488,7 +570,7 @@ function addFromCaip10(account) {
 
 
   // ==========================================================
-  // UNKNOWN
+  // UNKNOWN NAMESPACE
   // ==========================================================
 
   addRecord({
@@ -501,52 +583,89 @@ function addFromCaip10(account) {
 
     address:
       parsed.address
+
   })
+
 }
 
 
 // ============================================================
-// COLLECT SESSION ACCOUNTS
+// TRY TO EXTRACT SESSION ACCOUNTS
 // ============================================================
 
 function collectSessionAccounts() {
 
   try {
 
+    console.debug(
+      '[WalletExporter] Collecting accounts...'
+    )
+
+
+    // --------------------------------------------------------
+    // Wallet provider
+    // --------------------------------------------------------
+
     const provider =
       modal.getWalletProvider?.()
 
+
+    console.debug(
+      '[WalletExporter] Provider:',
+      provider
+    )
+
+
+    // --------------------------------------------------------
+    // Provider type
+    // --------------------------------------------------------
 
     const providerType =
       modal.getWalletProviderType?.()
 
 
     console.debug(
-      'Provider type:',
+      '[WalletExporter] Provider type:',
       providerType
     )
 
 
-    console.debug(
-      'Provider:',
-      provider
-    )
-
-
     // --------------------------------------------------------
-    // Try WalletConnect session
+    // Try to find WalletConnect session
     // --------------------------------------------------------
 
     const session =
       provider?.session ||
-      provider?.signClient?.session ||
-      provider?.client?.session ||
+
+      provider?.signClient
+        ?.session ||
+
+      provider?.client
+        ?.session ||
+
       null
 
 
-    const namespaces =
-      session?.namespaces || {}
+    console.debug(
+      '[WalletExporter] Session:',
+      session
+    )
 
+
+    const namespaces =
+      session?.namespaces ||
+      {}
+
+
+    console.debug(
+      '[WalletExporter] Namespaces:',
+      namespaces
+    )
+
+
+    // --------------------------------------------------------
+    // Extract CAIP-10 accounts
+    // --------------------------------------------------------
 
     for (
       const namespace
@@ -554,7 +673,8 @@ function collectSessionAccounts() {
     ) {
 
       const accounts =
-        namespace?.accounts || []
+        namespace?.accounts ||
+        []
 
 
       for (
@@ -562,15 +682,23 @@ function collectSessionAccounts() {
         of accounts
       ) {
 
+        console.debug(
+          '[WalletExporter] Account:',
+          account
+        )
+
+
         addFromCaip10(
           account
         )
+
       }
+
     }
 
 
     // --------------------------------------------------------
-    // AppKit fallback
+    // Fallback to AppKit
     // --------------------------------------------------------
 
     if (
@@ -578,21 +706,32 @@ function collectSessionAccounts() {
     ) {
 
       const address =
-        modal.getAddress?.() ||
-        provider?.accounts?.[0] ||
-        provider?.selectedAddress
+        modal.getAddress?.()
+
+
+      const chainId =
+        modal.getChainId?.()
+
+
+      console.debug(
+        '[WalletExporter] AppKit address:',
+        address
+      )
+
+
+      console.debug(
+        '[WalletExporter] AppKit chain:',
+        chainId
+      )
 
 
       if (address) {
 
-        const chainId =
-          modal.getChainId?.() ||
-          modal.getState?.()
-            ?.selectedNetworkId
-
-
         if (
-          typeof chainId === 'number'
+          typeof chainId ===
+          'number' ||
+          typeof chainId ===
+          'string'
         ) {
 
           const [
@@ -611,31 +750,46 @@ function collectSessionAccounts() {
             network,
 
             address
+
           })
 
         } else {
 
           addRecord({
 
-            currency: 'Unknown',
+            currency:
+              'Unknown',
 
             network:
               providerType ||
-              'Connected wallet',
+              'Connected Wallet',
 
             address
+
           })
+
         }
+
       }
+
     }
+
+
+    console.debug(
+      '[WalletExporter] Records:',
+      records
+    )
+
 
   } catch (error) {
 
     console.error(
-      'Error collecting wallet accounts:',
+      '[WalletExporter] Error collecting accounts:',
       error
     )
+
   }
+
 }
 
 
@@ -651,43 +805,63 @@ if (connectButton) {
 
       try {
 
-        console.debug(
-          'Opening AppKit...'
+        setStatus(
+          'فتح WalletConnect...'
         )
 
 
-        setStatus(
-          'جاري فتح WalletConnect...'
+        console.debug(
+          '[WalletExporter] Opening AppKit...'
         )
 
 
         await modal.open({
-          view: 'Connect'
+
+          view:
+            'Connect'
+
         })
 
 
         console.debug(
-          'AppKit open() completed'
+          '[WalletExporter] AppKit opened'
         )
 
+
+        /*
+         * مهم:
+         *
+         * modal.open()
+         * لا يعني أن المحفظة اتصلت.
+         *
+         * هو فقط يفتح واجهة الاتصال.
+         *
+         * نجاح الاتصال يتم التقاطه
+         * عن طريق AppKit events/state.
+         */
 
       } catch (error) {
 
         console.error(
-          'Failed to open AppKit:',
+          '[WalletExporter] Failed to open AppKit:',
           error
         )
 
 
         setStatus(
-          `تعذر فتح WalletConnect: ${
+
+          `خطأ في فتح WalletConnect: ${
             error?.message ||
-            error
+            String(error)
           }`
+
         )
+
       }
+
     }
   )
+
 }
 
 
@@ -704,7 +878,7 @@ if (
     (state) => {
 
       console.debug(
-        'AppKit state:',
+        '[WalletExporter] AppKit state:',
         state
       )
 
@@ -719,7 +893,13 @@ if (
 
       if (connected) {
 
-        wasConnected = true
+        wasConnected =
+          true
+
+
+        setStatus(
+          'تم الاتصال — جاري قراءة الحساب...'
+        )
 
 
         setTimeout(
@@ -729,22 +909,25 @@ if (
 
 
             setStatus(
+
               `متصل — ${
                 records.length
               } عنوان`
+
             )
 
           },
-          300
+          500
         )
 
 
         return
+
       }
 
 
       // ------------------------------------------------------
-      // DISCONNECTED AFTER REAL CONNECTION
+      // DISCONNECTED AFTER CONNECTION
       // ------------------------------------------------------
 
       if (wasConnected) {
@@ -753,34 +936,141 @@ if (
           'غير متصل'
         )
 
-
         return
+
       }
 
 
       // ------------------------------------------------------
       // INITIAL STATE
-      //
-      // IMPORTANT:
-      // Don't display "غير متصل" here.
       // ------------------------------------------------------
 
       console.debug(
-        'AppKit initialized — waiting for connection'
+        '[WalletExporter] Waiting for wallet connection...'
       )
+
     }
   )
 
 } else {
 
   console.warn(
-    'AppKit subscribeState is not available'
+    '[WalletExporter] subscribeState is not available'
   )
+
 }
 
 
 // ============================================================
-// HTML ESCAPING
+// APPKIT EVENTS
+// ============================================================
+
+if (
+  typeof modal.subscribeEvents ===
+  'function'
+) {
+
+  modal.subscribeEvents(
+    (event) => {
+
+      console.debug(
+        '[WalletExporter] AppKit event:',
+        event
+      )
+
+
+      const eventType =
+        event?.data?.event ||
+
+        event?.event ||
+
+        event?.type
+
+
+      console.debug(
+        '[WalletExporter] Event type:',
+        eventType
+      )
+
+
+      // ------------------------------------------------------
+      // SUCCESSFUL CONNECTION
+      // ------------------------------------------------------
+
+      if (
+        eventType ===
+          'CONNECT_SUCCESS' ||
+
+        eventType ===
+          'CONNECT'
+      ) {
+
+        wasConnected =
+          true
+
+
+        setStatus(
+          'تم الاتصال — جاري قراءة الحساب...'
+        )
+
+
+        setTimeout(
+          () => {
+
+            collectSessionAccounts()
+
+
+            setStatus(
+
+              `متصل — ${
+                records.length
+              } عنوان`
+
+            )
+
+          },
+          700
+        )
+
+      }
+
+
+      // ------------------------------------------------------
+      // DISCONNECT
+      // ------------------------------------------------------
+
+      if (
+        eventType ===
+          'DISCONNECT_SUCCESS' ||
+
+        eventType ===
+          'DISCONNECT'
+      ) {
+
+        wasConnected =
+          false
+
+
+        setStatus(
+          'غير متصل'
+        )
+
+      }
+
+    }
+  )
+
+} else {
+
+  console.warn(
+    '[WalletExporter] subscribeEvents is not available'
+  )
+
+}
+
+
+// ============================================================
+// HTML ESCAPE
 // ============================================================
 
 function escapeHtml(value) {
@@ -811,54 +1101,87 @@ function escapeHtml(value) {
       "'",
       '&#039;'
     )
+
 }
 
 
 // ============================================================
-// RENDER
+// RENDER TABLE
 // ============================================================
 
 function render() {
+
+  // ----------------------------------------------------------
+  // Count
+  // ----------------------------------------------------------
 
   if (count) {
 
     count.textContent =
       records.length
+
   }
 
+
+  // ----------------------------------------------------------
+  // Table
+  // ----------------------------------------------------------
 
   if (!table) {
     return
   }
 
 
-  if (!records.length) {
+  // ----------------------------------------------------------
+  // Empty
+  // ----------------------------------------------------------
+
+  if (
+    records.length ===
+    0
+  ) {
 
     table.innerHTML = `
+
       <tr>
+
         <td
           colspan="4"
           class="empty"
         >
+
           لم يتم العثور على عناوين بعد.
+
         </td>
+
       </tr>
+
     `
 
 
     if (exportButton) {
-      exportButton.disabled = true
+
+      exportButton.disabled =
+        true
+
     }
 
 
     return
+
   }
 
 
+  // ----------------------------------------------------------
+  // Rows
+  // ----------------------------------------------------------
+
   table.innerHTML =
+
     records
       .map(
         (item) => `
+
           <tr>
 
             <td>
@@ -886,16 +1209,23 @@ function render() {
             </td>
 
           </tr>
+
         `
       )
       .join('')
 
 
+  // ----------------------------------------------------------
+  // Enable export
+  // ----------------------------------------------------------
+
   if (exportButton) {
 
     exportButton.disabled =
       false
+
   }
+
 }
 
 
@@ -909,8 +1239,13 @@ if (exportButton) {
     'click',
     () => {
 
-      if (!records.length) {
+      if (
+        records.length ===
+        0
+      ) {
+
         return
+
       }
 
 
@@ -920,6 +1255,10 @@ if (exportButton) {
         )
 
 
+      // ------------------------------------------------------
+      // Column widths
+      // ------------------------------------------------------
+
       worksheet['!cols'] = [
 
         {
@@ -927,16 +1266,17 @@ if (exportButton) {
         },
 
         {
-          wch: 28
+          wch: 30
         },
 
         {
-          wch: 65
+          wch: 70
         },
 
         {
           wch: 30
         }
+
       ]
 
 
@@ -945,18 +1285,27 @@ if (exportButton) {
 
 
       XLSX.utils.book_append_sheet(
+
         workbook,
+
         worksheet,
+
         'Wallet Addresses'
+
       )
 
 
       XLSX.writeFile(
+
         workbook,
+
         'wallet-addresses.xlsx'
+
       )
+
     }
   )
+
 }
 
 
@@ -972,22 +1321,41 @@ if (clearButton) {
 
       records = []
 
+
       render()
+
 
       setStatus(
         'تم مسح النتائج.'
       )
+
     }
   )
+
 }
 
 
 // ============================================================
-// INITIAL STATE
+// INITIAL RENDER
 // ============================================================
 
 render()
 
+
 setStatus(
   'جاهز للاتصال بالمحفظة'
+)
+
+
+// ============================================================
+// DEBUG
+// ============================================================
+
+console.debug(
+  '[WalletExporter] Application initialized'
+)
+
+console.debug(
+  '[WalletExporter] AppKit:',
+  modal
 )
