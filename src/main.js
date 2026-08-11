@@ -1,4 +1,5 @@
 import { createAppKit } from '@reown/appkit'
+
 import {
   mainnet,
   arbitrum,
@@ -24,10 +25,16 @@ import { BitcoinAdapter } from '@reown/appkit-adapter-bitcoin'
 import { TonAdapter } from '@reown/appkit-adapter-ton'
 import { TronAdapter } from '@reown/appkit-adapter-tron'
 import { TronLinkAdapter } from '@tronweb3/tronwallet-adapter-tronlink'
+
 import * as XLSX from 'xlsx'
 
 import { PROJECT_ID, APP_URL } from './config'
 import './style.css'
+
+
+// ============================================================
+// DOM
+// ============================================================
 
 const $ = (id) => document.getElementById(id)
 
@@ -37,6 +44,11 @@ const clearButton = $('clearButton')
 const status = $('status')
 const table = $('addressTable')
 const count = $('count')
+
+
+// ============================================================
+// NETWORKS
+// ============================================================
 
 const evmNetworks = [
   mainnet,
@@ -51,25 +63,53 @@ const evmNetworks = [
 
 const networks = [
   ...evmNetworks,
+
+  // Solana
   solana,
+
+  // Bitcoin
   bitcoin,
   bitcoinTestnet,
   bitcoinSignet,
+
+  // TON
   ton,
   tonTestnet,
+
+  // TRON
   tronMainnet,
   tronShastaTestnet
 ]
 
+
+// ============================================================
+// ADAPTERS
+// ============================================================
+
+// EVM
 const wagmiAdapter = new WagmiAdapter({
   projectId: PROJECT_ID,
   networks: evmNetworks
 })
 
-const bitcoinAdapter = new BitcoinAdapter({ projectId: PROJECT_ID })
-const solanaAdapter = new SolanaAdapter()
-const tonAdapter = new TonAdapter({ projectId: PROJECT_ID })
 
+// Bitcoin
+const bitcoinAdapter = new BitcoinAdapter({
+  projectId: PROJECT_ID
+})
+
+
+// Solana
+const solanaAdapter = new SolanaAdapter()
+
+
+// TON
+const tonAdapter = new TonAdapter({
+  projectId: PROJECT_ID
+})
+
+
+// TRON
 const tronAdapter = new TronAdapter({
   walletAdapters: [
     new TronLinkAdapter({
@@ -79,6 +119,11 @@ const tronAdapter = new TronAdapter({
   ]
 })
 
+
+// ============================================================
+// APPKIT
+// ============================================================
+
 const modal = createAppKit({
   adapters: [
     wagmiAdapter,
@@ -87,14 +132,21 @@ const modal = createAppKit({
     tonAdapter,
     tronAdapter
   ],
+
   networks,
+
   projectId: PROJECT_ID,
+
   metadata: {
     name: 'Wallet Address Exporter',
     description: 'Export wallet accounts to Excel',
+
+    // Must match the deployed website origin/path
     url: APP_URL,
+
     icons: []
   },
+
   features: {
     analytics: false,
     email: false,
@@ -102,14 +154,29 @@ const modal = createAppKit({
   }
 })
 
+
+// ============================================================
+// DATA
+// ============================================================
+
 let records = []
+
+
+// ============================================================
+// STATUS
+// ============================================================
 
 function setStatus(message) {
   status.textContent = message
 }
 
+
+// ============================================================
+// ADD RECORD
+// ============================================================
+
 function addRecord(record) {
-  if (!record.address) return
+  if (!record || !record.address) return
 
   const normalized = {
     Currency: record.currency || 'Unknown',
@@ -131,6 +198,11 @@ function addRecord(record) {
   }
 }
 
+
+// ============================================================
+// EVM NETWORK → CURRENCY
+// ============================================================
+
 function currencyForEip155(chainId) {
   const id = Number(chainId)
 
@@ -145,25 +217,42 @@ function currencyForEip155(chainId) {
     534352: ['ETH', 'Scroll']
   }
 
-  return map[id] || ['EVM', `EVM Network ${id || ''}`.trim()]
+  return map[id] || [
+    'EVM',
+    `EVM Network ${id || ''}`.trim()
+  ]
 }
+
+
+// ============================================================
+// PARSE CAIP-10
+// ============================================================
 
 function parseAccount(account) {
   /*
-   * CAIP-10 account format:
+   * CAIP-10:
+   *
    * namespace:reference:address
    *
-   * Example:
+   * Examples:
+   *
    * eip155:1:0xabc...
-   * solana:mainnet:...
+   * solana:mainnet:ABC...
    * bip122:...:bc1...
+   * ton:mainnet:EQ...
+   * tron:0x2b6653dc:TX...
    */
-  if (typeof account !== 'string') return null
+
+  if (typeof account !== 'string') {
+    return null
+  }
 
   const first = account.indexOf(':')
   const last = account.lastIndexOf(':')
 
-  if (first <= 0 || last <= first) return null
+  if (first <= 0 || last <= first) {
+    return null
+  }
 
   return {
     namespace: account.slice(0, first),
@@ -172,60 +261,121 @@ function parseAccount(account) {
   }
 }
 
+
+// ============================================================
+// ADD CAIP-10 ACCOUNT
+// ============================================================
+
 function addFromCaip10(account) {
   const parsed = parseAccount(account)
+
   if (!parsed) return
 
+
+  // ----------------------------------------------------------
+  // EVM
+  // ----------------------------------------------------------
+
   if (parsed.namespace === 'eip155') {
-    const [currency, network] = currencyForEip155(parsed.reference)
+    const [currency, network] =
+      currencyForEip155(parsed.reference)
+
     addRecord({
       currency,
       network,
       address: parsed.address
     })
+
     return
   }
+
+
+  // ----------------------------------------------------------
+  // SOLANA
+  // ----------------------------------------------------------
 
   if (parsed.namespace === 'solana') {
     addRecord({
       currency: 'SOL',
-      network: parsed.reference === 'mainnet' ? 'Solana' : `Solana (${parsed.reference})`,
+
+      network:
+        parsed.reference === 'mainnet'
+          ? 'Solana'
+          : `Solana (${parsed.reference})`,
+
       address: parsed.address
     })
+
     return
   }
 
+
+  // ----------------------------------------------------------
+  // BITCOIN
+  // ----------------------------------------------------------
+
   if (parsed.namespace === 'bip122') {
-    const btcMainnet = '000000000019d6689c085ae165831e934'
-    const network = parsed.reference === btcMainnet
-      ? 'Bitcoin'
-      : 'Bitcoin (test/signet)'
+    const bitcoinMainnetGenesis =
+      '000000000019d6689c085ae165831e934'
+
+    const network =
+      parsed.reference === bitcoinMainnetGenesis
+        ? 'Bitcoin'
+        : 'Bitcoin (test/signet)'
 
     addRecord({
       currency: 'BTC',
       network,
       address: parsed.address
     })
+
     return
   }
+
+
+  // ----------------------------------------------------------
+  // TON
+  // ----------------------------------------------------------
 
   if (parsed.namespace === 'ton') {
     addRecord({
       currency: 'TON',
-      network: parsed.reference.includes('test') ? 'TON Testnet' : 'TON',
+
+      network:
+        parsed.reference.includes('test')
+          ? 'TON Testnet'
+          : 'TON',
+
       address: parsed.address
     })
+
     return
   }
+
+
+  // ----------------------------------------------------------
+  // TRON
+  // ----------------------------------------------------------
 
   if (parsed.namespace === 'tron') {
     addRecord({
       currency: 'TRX',
-      network: parsed.reference.includes('shasta') ? 'TRON Shasta Testnet' : 'TRON',
+
+      network:
+        parsed.reference.includes('shasta')
+          ? 'TRON Shasta Testnet'
+          : 'TRON',
+
       address: parsed.address
     })
+
     return
   }
+
+
+  // ----------------------------------------------------------
+  // UNKNOWN NAMESPACE
+  // ----------------------------------------------------------
 
   addRecord({
     currency: parsed.namespace.toUpperCase(),
@@ -234,143 +384,217 @@ function addFromCaip10(account) {
   })
 }
 
+
+// ============================================================
+// COLLECT SESSION ACCOUNTS
+// ============================================================
+
 function collectSessionAccounts() {
-  /*
-   * AppKit exposes the active wallet provider and provider type.
-   * When the underlying WalletConnect provider exposes a session,
-   * its namespaces contain CAIP-10 accounts.
-   */
-  const provider = modal.getWalletProvider()
-  const providerType = modal.getWalletProviderType()
+  try {
+    const provider = modal.getWalletProvider?.()
+    const providerType = modal.getWalletProviderType?.()
 
-  console.debug('Provider type:', providerType)
-  console.debug('Provider:', provider)
+    console.debug(
+      'Provider type:',
+      providerType
+    )
 
-  const session =
-    provider?.session ||
-    provider?.signClient?.session ||
-    provider?.client?.session ||
-    null
+    console.debug(
+      'Provider:',
+      provider
+    )
 
-  const namespaces = session?.namespaces || {}
 
-  for (const namespace of Object.values(namespaces)) {
-    for (const account of namespace.accounts || []) {
-      addFromCaip10(account)
-    }
-  }
+    /*
+     * Some WalletConnect providers expose their
+     * active session through one of these objects.
+     *
+     * This is intentionally treated as optional.
+     */
 
-  /*
-   * AppKit also gives us the currently active address.
-   * We use it as a fallback if the provider does not expose
-   * the full session namespace object.
-   */
-  const state = modal.getState()
-  const selectedNetworkId = state?.selectedNetworkId
+    const session =
+      provider?.session ||
+      provider?.signClient?.session ||
+      provider?.client?.session ||
+      null
 
-  if (modal.getIsConnected()) {
-    const address =
-      modal.getAddress?.() ||
-      provider?.accounts?.[0] ||
-      provider?.selectedAddress
 
-    if (address) {
-      if (typeof selectedNetworkId === 'number') {
-        const [currency, network] = currencyForEip155(selectedNetworkId)
-        addRecord({
-          currency,
-          network,
-          address
-        })
-      } else {
-        addRecord({
-          currency: 'Unknown',
-          network: providerType || 'Connected wallet',
-          address
-        })
+    const namespaces =
+      session?.namespaces || {}
+
+
+    /*
+     * Read all CAIP-10 accounts exposed by the session.
+     */
+
+    for (const namespace of Object.values(namespaces)) {
+      const accounts = namespace?.accounts || []
+
+      for (const account of accounts) {
+        addFromCaip10(account)
       }
     }
+
+
+    /*
+     * Fallback:
+     *
+     * AppKit exposes the currently active address.
+     */
+
+    if (modal.getIsConnected?.()) {
+      const address =
+        modal.getAddress?.() ||
+        provider?.accounts?.[0] ||
+        provider?.selectedAddress
+
+      if (address) {
+        const chainId =
+          modal.getChainId?.() ||
+          modal.getState?.()?.selectedNetworkId
+
+        if (typeof chainId === 'number') {
+          const [currency, network] =
+            currencyForEip155(chainId)
+
+          addRecord({
+            currency,
+            network,
+            address
+          })
+        } else {
+          addRecord({
+            currency: 'Unknown',
+            network: providerType || 'Connected wallet',
+            address
+          })
+        }
+      }
+    }
+
+  } catch (error) {
+    console.error(
+      'Error collecting wallet accounts:',
+      error
+    )
   }
 }
 
-connectButton.addEventListener('click', async () => {
-  if (PROJECT_ID === 'YOUR_REOWN_PROJECT_ID') {
-    setStatus('ضع Reown Project ID أولًا في src/config.js')
-    return
-  }
 
-  try {
-    setStatus('جاري فتح نافذة الاتصال...')
-    await modal.open({ view: 'Connect' })
-  } catch (error) {
-    console.error(error)
-    setStatus(`تعذر فتح المحفظة: ${error?.message || error}`)
-  }
-})
+// ============================================================
+// CONNECT BUTTON
+// ============================================================
 
-modal.subscribeProvider(({ address, providerType, chainId, isConnected, error }) => {
-  if (error) {
-    console.error(error)
-    setStatus(`خطأ في المحفظة: ${error?.message || error}`)
-    return
-  }
+connectButton.addEventListener(
+  'click',
+  async () => {
 
-  if (!isConnected) {
-    setStatus('غير متصل')
-    return
-  }
+    if (
+      !PROJECT_ID ||
+      PROJECT_ID === 'YOUR_REOWN_PROJECT_ID'
+    ) {
+      setStatus(
+        'ضع Reown Project ID أولًا في src/config.js'
+      )
 
-  if (address) {
-    if (providerType === 'eip155' || providerType === 'EVM' || providerType === 'evm') {
-      const [currency, network] = currencyForEip155(chainId)
-      addRecord({ currency, network, address })
-    } else if (providerType === 'solana') {
-      addRecord({ currency: 'SOL', network: 'Solana', address })
-    } else if (providerType === 'bip122') {
-      addRecord({ currency: 'BTC', network: 'Bitcoin', address })
-    } else if (providerType === 'ton') {
-      addRecord({ currency: 'TON', network: 'TON', address })
-    } else if (providerType === 'tron') {
-      addRecord({ currency: 'TRX', network: 'TRON', address })
-    } else {
-      addRecord({ currency: 'Unknown', network: providerType || 'Unknown', address })
+      return
+    }
+
+
+    try {
+
+      setStatus(
+        'جاري فتح نافذة الاتصال...'
+      )
+
+
+      /*
+       * Open AppKit connection modal.
+       */
+
+      await modal.open({
+        view: 'Connect'
+      })
+
+    } catch (error) {
+
+      console.error(
+        'Failed to open AppKit:',
+        error
+      )
+
+      setStatus(
+        `تعذر فتح المحفظة: ${
+          error?.message || error
+        }`
+      )
     }
   }
+)
 
-  /*
-   * Give the WalletConnect/AppKit provider a moment to expose
-   * its current session, then collect CAIP-10 accounts.
-   */
-  setTimeout(() => {
-    collectSessionAccounts()
-    setStatus(`متصل — ${records.length} عنوان`)
-  }, 300)
-})
 
-function render() {
-  count.textContent = records.length
+// ============================================================
+// APPKIT STATE
+// ============================================================
 
-  if (!records.length) {
-    table.innerHTML = `
-      <tr>
-        <td colspan="4" class="empty">لم يتم العثور على عناوين بعد.</td>
-      </tr>
-    `
-    exportButton.disabled = true
-    return
-  }
+/*
+ * IMPORTANT:
+ *
+ * We intentionally use subscribeState instead of
+ * subscribeProvider here.
+ *
+ * This prevents our application code from depending
+ * directly on the provider subscription API.
+ */
 
-  table.innerHTML = records.map((item) => `
-    <tr>
-      <td>${escapeHtml(item.Currency)}</td>
-      <td>${escapeHtml(item.Network)}</td>
-      <td class="address">${escapeHtml(item.Address)}</td>
-      <td>${escapeHtml(item.Memo)}</td>
-    </tr>
-  `).join('')
+if (typeof modal.subscribeState === 'function') {
 
-  exportButton.disabled = false
+  modal.subscribeState((state) => {
+
+    console.debug(
+      'AppKit state:',
+      state
+    )
+
+
+    /*
+     * If the modal is closed, don't change
+     * connection status unnecessarily.
+     */
+
+    if (!modal.getIsConnected?.()) {
+      setStatus('غير متصل')
+      return
+    }
+
+
+    /*
+     * Give the adapter a short moment to expose
+     * the connected account/session.
+     */
+
+    setTimeout(() => {
+
+      collectSessionAccounts()
+
+      setStatus(
+        `متصل — ${records.length} عنوان`
+      )
+
+    }, 300)
+  })
+
+} else {
+
+  console.warn(
+    'AppKit subscribeState is not available'
+  )
 }
+
+
+// ============================================================
+// HTML ESCAPING
+// ============================================================
 
 function escapeHtml(value) {
   return String(value)
@@ -381,28 +605,124 @@ function escapeHtml(value) {
     .replaceAll("'", '&#039;')
 }
 
-exportButton.addEventListener('click', () => {
-  if (!records.length) return
 
-  const worksheet = XLSX.utils.json_to_sheet(records)
+// ============================================================
+// RENDER TABLE
+// ============================================================
 
-  worksheet['!cols'] = [
-    { wch: 15 },
-    { wch: 28 },
-    { wch: 65 },
-    { wch: 30 }
-  ]
+function render() {
 
-  const workbook = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(workbook, worksheet, 'Wallet Addresses')
+  count.textContent = records.length
 
-  XLSX.writeFile(workbook, 'wallet-addresses.xlsx')
-})
 
-clearButton.addEventListener('click', () => {
-  records = []
-  render()
-  setStatus('تم مسح النتائج.')
-})
+  if (!records.length) {
+
+    table.innerHTML = `
+      <tr>
+        <td colspan="4" class="empty">
+          لم يتم العثور على عناوين بعد.
+        </td>
+      </tr>
+    `
+
+    exportButton.disabled = true
+
+    return
+  }
+
+
+  table.innerHTML = records
+    .map((item) => `
+      <tr>
+        <td>
+          ${escapeHtml(item.Currency)}
+        </td>
+
+        <td>
+          ${escapeHtml(item.Network)}
+        </td>
+
+        <td class="address">
+          ${escapeHtml(item.Address)}
+        </td>
+
+        <td>
+          ${escapeHtml(item.Memo)}
+        </td>
+      </tr>
+    `)
+    .join('')
+
+
+  exportButton.disabled = false
+}
+
+
+// ============================================================
+// EXPORT EXCEL
+// ============================================================
+
+exportButton.addEventListener(
+  'click',
+  () => {
+
+    if (!records.length) {
+      return
+    }
+
+
+    const worksheet =
+      XLSX.utils.json_to_sheet(records)
+
+
+    worksheet['!cols'] = [
+      { wch: 15 },
+      { wch: 28 },
+      { wch: 65 },
+      { wch: 30 }
+    ]
+
+
+    const workbook =
+      XLSX.utils.book_new()
+
+
+    XLSX.utils.book_append_sheet(
+      workbook,
+      worksheet,
+      'Wallet Addresses'
+    )
+
+
+    XLSX.writeFile(
+      workbook,
+      'wallet-addresses.xlsx'
+    )
+  }
+)
+
+
+// ============================================================
+// CLEAR
+// ============================================================
+
+clearButton.addEventListener(
+  'click',
+  () => {
+
+    records = []
+
+    render()
+
+    setStatus(
+      'تم مسح النتائج.'
+    )
+  }
+)
+
+
+// ============================================================
+// INITIAL RENDER
+// ============================================================
 
 render()
