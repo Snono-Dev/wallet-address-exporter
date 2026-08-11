@@ -149,18 +149,31 @@ const modal = createAppKit({
 
 
 // ============================================================
-// DATA
+// CURRENT DATA
 // ============================================================
 
+/*
+ * هذه هي الحسابات الحالية التي وصلت من جلسة WalletConnect.
+ *
+ * Set يمنع التكرار تلقائيًا.
+ *
+ * لا نحتفظ بتحديثات قديمة على أنها حسابات جديدة.
+ */
+let currentAccounts = new Set()
+
+/*
+ * البيانات التي ستظهر في الجدول.
+ */
 let records = []
-
-let rawAccounts = []
-
-let lastSession = null
 
 let wasConnected = false
 
 let collectionInProgress = false
+
+/*
+ * يمنع عدة تحديثات متزامنة من الكتابة فوق بعضها.
+ */
+let collectionTimer = null
 
 
 // ============================================================
@@ -177,7 +190,7 @@ function setStatus(message) {
 
 
 // ============================================================
-// CLEAN STRING
+// STRING
 // ============================================================
 
 function cleanString(value) {
@@ -195,7 +208,7 @@ function cleanString(value) {
 
 
 // ============================================================
-// NETWORK MAP
+// EVM NETWORKS
 // ============================================================
 
 const EVM_NETWORKS = {
@@ -260,7 +273,9 @@ function getNetworkInfo(
     cleanString(reference)
 
 
+  // ----------------------------------------------------------
   // EVM
+  // ----------------------------------------------------------
 
   if (ns === 'eip155') {
 
@@ -285,7 +300,9 @@ function getNetworkInfo(
   }
 
 
+  // ----------------------------------------------------------
   // Solana
+  // ----------------------------------------------------------
 
   if (ns === 'solana') {
 
@@ -308,7 +325,9 @@ function getNetworkInfo(
   }
 
 
+  // ----------------------------------------------------------
   // Bitcoin
+  // ----------------------------------------------------------
 
   if (ns === 'bip122') {
 
@@ -329,7 +348,9 @@ function getNetworkInfo(
   }
 
 
+  // ----------------------------------------------------------
   // TON
+  // ----------------------------------------------------------
 
   if (ns === 'ton') {
 
@@ -350,7 +371,9 @@ function getNetworkInfo(
   }
 
 
+  // ----------------------------------------------------------
   // TRON
+  // ----------------------------------------------------------
 
   if (ns === 'tron') {
 
@@ -371,7 +394,9 @@ function getNetworkInfo(
   }
 
 
-  // Unknown namespace
+  // ----------------------------------------------------------
+  // Unknown
+  // ----------------------------------------------------------
 
   return {
 
@@ -453,7 +478,7 @@ function parseCaip10(account) {
 
 
 // ============================================================
-// MEMO SEARCH
+// MEMO / TAG
 // ============================================================
 
 function findMemo(object) {
@@ -493,10 +518,8 @@ function findMemo(object) {
   ) {
 
     if (
-      object[field] !==
-        undefined &&
-      object[field] !==
-        null
+      object[field] !== undefined &&
+      object[field] !== null
     ) {
 
       const value =
@@ -518,55 +541,96 @@ function findMemo(object) {
 
 
 // ============================================================
-// ADD RAW ACCOUNT
+// ADD RECORD
 // ============================================================
 
-function addRawAccount(
+function addRecord({
 
-  account,
+  currency = 'Unknown',
+
+  network = 'Unknown',
+
+  address,
 
   memo = ''
 
-) {
+}) {
 
-  if (
-    typeof account !== 'string'
-  ) {
+  const finalAddress =
+    cleanString(address)
+
+  if (!finalAddress) {
     return
   }
 
-  const value =
-    account.trim()
 
-  if (!value) {
-    return
+  const record = {
+
+    Currency:
+      cleanString(currency) ||
+      'Unknown',
+
+    Network:
+      cleanString(network) ||
+      'Unknown',
+
+    Address:
+      finalAddress,
+
+    Memo:
+      cleanString(memo)
+
   }
+
 
   /*
-   * This is intentionally separate
-   * from the converted records.
-   *
-   * rawAccounts contains EXACTLY
-   * what was received in accounts[].
+   * حماية إضافية من التكرار.
    */
+  const exists =
+    records.some(
+      (item) =>
 
-  if (
-    !rawAccounts.includes(value)
-  ) {
+        item.Currency ===
+          record.Currency &&
 
-    rawAccounts.push(value)
+        item.Network ===
+          record.Network &&
 
+        item.Address ===
+          record.Address &&
+
+        item.Memo ===
+          record.Memo
+    )
+
+
+  if (exists) {
+    return
   }
 
 
+  records.push(record)
+
+}
+
+
+// ============================================================
+// ADD CAIP ACCOUNT
+// ============================================================
+
+function addCaipAccount(
+  account,
+  memo = ''
+) {
+
   const parsed =
-    parseCaip10(value)
+    parseCaip10(account)
 
   if (!parsed) {
 
     console.warn(
-      '[WalletExporter] Invalid account:',
-      value
+      '[WalletExporter] Invalid CAIP-10 account:',
+      account
     )
 
     return
@@ -600,90 +664,13 @@ function addRawAccount(
 
 
 // ============================================================
-// ADD RECORD
-// ============================================================
-
-function addRecord({
-
-  currency = 'Unknown',
-
-  network = 'Unknown',
-
-  address,
-
-  memo = ''
-
-}) {
-
-  const finalAddress =
-    cleanString(address)
-
-  if (!finalAddress) {
-    return false
-  }
-
-
-  const record = {
-
-    Currency:
-      cleanString(currency) ||
-      'Unknown',
-
-    Network:
-      cleanString(network) ||
-      'Unknown',
-
-    Address:
-      finalAddress,
-
-    Memo:
-      cleanString(memo)
-
-  }
-
-
-  const exists =
-    records.some(
-      (item) =>
-
-        item.Currency ===
-          record.Currency &&
-
-        item.Network ===
-          record.Network &&
-
-        item.Address ===
-          record.Address &&
-
-        item.Memo ===
-          record.Memo
-    )
-
-
-  if (exists) {
-    return false
-  }
-
-
-  records.push(record)
-
-  render()
-
-  return true
-
-}
-
-
-// ============================================================
 // EXTRACT NAMESPACE
 // ============================================================
 
 function extractNamespace(
-
   namespaceName,
-
-  namespaceData
-
+  namespaceData,
+  destinationSet
 ) {
 
   if (!namespaceData) {
@@ -705,14 +692,6 @@ function extractNamespace(
       : []
 
 
-  const chains =
-    Array.isArray(
-      namespaceData.chains
-    )
-      ? namespaceData.chains
-      : []
-
-
   const namespaceMemo =
     findMemo(
       namespaceData
@@ -725,35 +704,56 @@ function extractNamespace(
 
 
   console.log(
+    'chains:',
+    namespaceData.chains
+  )
+
+
+  console.log(
     'accounts[]:',
     accounts
   )
 
 
-  console.log(
-    'chains[]:',
-    chains
-  )
-
-
-  // ----------------------------------------------------------
-  // EXACT accounts[] VALUES
-  // ----------------------------------------------------------
+  /*
+   * نأخذ accounts[] كما أرسلتها الجلسة.
+   *
+   * لا نستخدم getAddress هنا.
+   */
 
   for (
     const account of accounts
   ) {
 
     if (
-      typeof account === 'string'
+      typeof account !== 'string'
     ) {
-
-      addRawAccount(
-        account,
-        namespaceMemo
-      )
-
+      continue
     }
+
+
+    const value =
+      account.trim()
+
+
+    if (!value) {
+      continue
+    }
+
+
+    /*
+     * Set يمنع التكرار.
+     */
+    destinationSet.add(value)
+
+
+    /*
+     * تحويل CAIP-10 إلى بيانات الجدول.
+     */
+    addCaipAccount(
+      value,
+      namespaceMemo
+    )
 
   }
 
@@ -764,12 +764,134 @@ function extractNamespace(
 
 
 // ============================================================
+// READ SESSION
+// ============================================================
+
+function readSessionAccounts() {
+
+  /*
+   * Set جديد في كل قراءة.
+   *
+   * هذا هو الإصلاح الأساسي.
+   *
+   * لا نضيف إلى البيانات القديمة.
+   */
+  const newAccounts =
+    new Set()
+
+
+  const provider =
+    getWalletProvider()
+
+
+  if (!provider) {
+
+    console.warn(
+      '[WalletExporter] No wallet provider'
+    )
+
+    return newAccounts
+
+  }
+
+
+  // ----------------------------------------------------------
+  // provider.session
+  // ----------------------------------------------------------
+
+  if (provider.session) {
+
+    extractSession(
+      provider.session,
+      'provider.session',
+      newAccounts
+    )
+
+  }
+
+
+  // ----------------------------------------------------------
+  // signClient session
+  // ----------------------------------------------------------
+
+  if (
+    provider.signClient?.session
+  ) {
+
+    extractSession(
+      provider.signClient.session,
+      'provider.signClient.session',
+      newAccounts
+    )
+
+  }
+
+
+  // ----------------------------------------------------------
+  // client session
+  // ----------------------------------------------------------
+
+  if (
+    provider.client?.session
+  ) {
+
+    extractSession(
+      provider.client.session,
+      'provider.client.session',
+      newAccounts
+    )
+
+  }
+
+
+  // ----------------------------------------------------------
+  // AppKit state
+  // ----------------------------------------------------------
+
+  if (
+    typeof modal.getState ===
+    'function'
+  ) {
+
+    const state =
+      modal.getState()
+
+
+    console.log(
+      '[WalletExporter] AppKit state:',
+      state
+    )
+
+
+    /*
+     * بعض الإصدارات قد توفر session هنا.
+     */
+    if (state?.session) {
+
+      extractSession(
+        state.session,
+        'appkit.state.session',
+        newAccounts
+      )
+
+    }
+
+  }
+
+
+  return newAccounts
+
+}
+
+
+// ============================================================
 // EXTRACT SESSION
 // ============================================================
 
 function extractSession(
   session,
-  source = 'unknown'
+  source,
+  destinationSet
 ) {
 
   if (!session) {
@@ -778,7 +900,7 @@ function extractSession(
 
 
   console.group(
-    `[WalletExporter] SESSION SOURCE: ${source}`
+    `[WalletExporter] SESSION: ${source}`
   )
 
 
@@ -788,17 +910,13 @@ function extractSession(
   )
 
 
-  lastSession =
-    session
-
-
   const namespaces =
     session.namespaces ||
     {}
 
 
   console.log(
-    'SESSION NAMESPACES:',
+    'NAMESPACES:',
     namespaces
   )
 
@@ -815,16 +933,11 @@ function extractSession(
 
     extractNamespace(
       namespace,
-      namespaceData
+      namespaceData,
+      destinationSet
     )
 
   }
-
-
-  console.log(
-    'ALL RAW ACCOUNTS:',
-    rawAccounts
-  )
 
 
   console.groupEnd()
@@ -833,7 +946,7 @@ function extractSession(
 
 
 // ============================================================
-// GET WALLET PROVIDER
+// PROVIDER
 // ============================================================
 
 function getWalletProvider() {
@@ -851,8 +964,8 @@ function getWalletProvider() {
 
   } catch (error) {
 
-    console.debug(
-      '[WalletExporter] Provider error:',
+    console.error(
+      '[WalletExporter] getWalletProvider error:',
       error
     )
 
@@ -864,7 +977,42 @@ function getWalletProvider() {
 
 
 // ============================================================
-// COLLECT ACCOUNTS
+// REBUILD TABLE FROM CURRENT SESSION
+// ============================================================
+
+function rebuildRecords(
+  accounts
+) {
+
+  /*
+   * مهم جدًا:
+   *
+   * نحذف النتائج القديمة بالكامل.
+   */
+  records = []
+
+
+  /*
+   * نقرأ كل account مرة واحدة فقط.
+   */
+  for (
+    const account of accounts
+  ) {
+
+    addCaipAccount(
+      account
+    )
+
+  }
+
+
+  render()
+
+}
+
+
+// ============================================================
+// COLLECT CURRENT ACCOUNTS
 // ============================================================
 
 async function collectAccounts() {
@@ -881,118 +1029,81 @@ async function collectAccounts() {
 
 
   console.group(
-    '[WalletExporter] COLLECT ACCOUNTS'
+    '[WalletExporter] COLLECT CURRENT ACCOUNTS'
   )
 
 
   try {
 
     /*
-     * Do NOT clear rawAccounts here.
-     *
-     * This lets us compare what was
-     * received during the current
-     * connection.
+     * انتظار قصير حتى تنتهي WalletConnect
+     * من تحديث الجلسة.
      */
-
-
     await new Promise(
       (resolve) =>
         setTimeout(
           resolve,
-          500
+          300
         )
     )
 
 
-    const provider =
-      getWalletProvider()
+    const newAccounts =
+      readSessionAccounts()
 
 
-    console.log(
-      'WALLET PROVIDER:',
-      provider
-    )
-
-
-    // --------------------------------------------------------
-    // 1. Universal Provider session
-    // --------------------------------------------------------
-
-    if (provider) {
-
-      extractSession(
-        provider.session,
-        'provider.session'
-      )
-
-
-      // ------------------------------------------------------
-      // 2. SignClient session
-      // ------------------------------------------------------
-
-      if (
-        provider.signClient
-          ?.session
-      ) {
-
-        extractSession(
-          provider.signClient.session,
-          'provider.signClient.session'
-        )
-
-      }
-
-
-      // ------------------------------------------------------
-      // 3. Client session
-      // ------------------------------------------------------
-
-      if (
-        provider.client
-          ?.session
-      ) {
-
-        extractSession(
-          provider.client.session,
-          'provider.client.session'
-        )
-
-      }
-
-    }
-
-
-    // --------------------------------------------------------
-    // 4. AppKit state
-    // --------------------------------------------------------
+    /*
+     * --------------------------------------------------------
+     * إذا وجدنا accounts[] من WalletConnect
+     * نستخدمها فقط.
+     * --------------------------------------------------------
+     */
 
     if (
-      typeof modal.getState ===
-      'function'
+      newAccounts.size > 0
     ) {
 
-      const state =
-        modal.getState()
+      currentAccounts =
+        newAccounts
 
 
       console.log(
-        'APPKIT STATE:',
-        state
+        'CURRENT UNIQUE ACCOUNTS:',
+        [...currentAccounts]
       )
 
 
-      extractSession(
-        state?.session,
-        'appkit.state.session'
+      console.log(
+        'CURRENT UNIQUE ACCOUNT COUNT:',
+        currentAccounts.size
       )
+
+
+      rebuildRecords(
+        currentAccounts
+      )
+
+
+      setStatus(
+        `متصل — ${currentAccounts.size} حساب`
+      )
+
+
+      console.groupEnd()
+
+      return
 
     }
 
 
-    // --------------------------------------------------------
-    // 5. Current account fallback
-    // --------------------------------------------------------
+    /*
+     * --------------------------------------------------------
+     * FALLBACK
+     *
+     * لا نستخدم getAddress إلا إذا لم تصل
+     * أي accounts[] من الجلسة.
+     * --------------------------------------------------------
+     */
 
     const address =
       typeof modal.getAddress ===
@@ -1009,25 +1120,25 @@ async function collectAccounts() {
 
 
     console.log(
-      'CURRENT ADDRESS:',
+      'FALLBACK ADDRESS:',
       address
     )
 
 
-    console.log(
-      'CURRENT CHAIN:',
-      chainId
-    )
-
-
-    /*
-     * This fallback is useful when AppKit
-     * exposes the current account but the
-     * provider session is not directly
-     * accessible.
-     */
-
     if (address) {
+
+      const fallbackAccount =
+        `eip155:${chainId}:${address}`
+
+
+      currentAccounts =
+        new Set([
+          fallbackAccount
+        ])
+
+
+      records = []
+
 
       const info =
         getNetworkInfo(
@@ -1049,59 +1160,48 @@ async function collectAccounts() {
       })
 
 
-      /*
-       * Add it to rawAccounts only if
-       * it was not already received as
-       * CAIP-10.
-       */
+      render()
 
-      if (
-        !rawAccounts.some(
-          (item) =>
-            item.endsWith(
-              `:${address}`
-            )
-        )
-      ) {
 
-        rawAccounts.push(
-          address
-        )
+      setStatus(
+        'متصل — 1 حساب'
+      )
 
-      }
+
+      console.groupEnd()
+
+      return
 
     }
 
 
-    console.log(
-      '================================'
-    )
+    /*
+     * لا توجد بيانات.
+     */
 
-    console.log(
-      'RAW ACCOUNTS RECEIVED:',
-      rawAccounts
-    )
+    currentAccounts =
+      new Set()
 
-    console.log(
-      'TOTAL RAW ACCOUNTS:',
-      rawAccounts.length
-    )
+    records = []
 
-    console.log(
-      'TOTAL EXPORTED RECORDS:',
-      records.length
-    )
+    render()
 
-    console.log(
-      '================================'
+
+    setStatus(
+      'متصل — لم تصل أي accounts[]'
     )
 
 
   } catch (error) {
 
     console.error(
-      '[WalletExporter] Collection failed:',
+      '[WalletExporter] Collection error:',
       error
+    )
+
+
+    setStatus(
+      'حدث خطأ أثناء قراءة الحسابات'
     )
 
   } finally {
@@ -1117,7 +1217,40 @@ async function collectAccounts() {
 
 
 // ============================================================
-// CONNECT
+// SCHEDULE COLLECTION
+// ============================================================
+
+function scheduleCollection(
+  delay = 500
+) {
+
+  if (collectionTimer) {
+
+    clearTimeout(
+      collectionTimer
+    )
+
+  }
+
+
+  collectionTimer =
+    setTimeout(
+      async () => {
+
+        collectionTimer =
+          null
+
+        await collectAccounts()
+
+      },
+      delay
+    )
+
+}
+
+
+// ============================================================
+// CONNECT BUTTON
 // ============================================================
 
 if (connectButton) {
@@ -1136,11 +1269,6 @@ if (connectButton) {
         await modal.open({
           view: 'Connect'
         })
-
-
-        console.log(
-          '[WalletExporter] AppKit opened'
-        )
 
 
       } catch (error) {
@@ -1176,7 +1304,7 @@ if (
 ) {
 
   modal.subscribeState(
-    async (state) => {
+    (state) => {
 
       console.debug(
         '[WalletExporter] STATE CHANGED:',
@@ -1196,28 +1324,13 @@ if (
 
 
         setStatus(
-          'تم الاتصال — قراءة accounts[]...'
+          'تم الاتصال — قراءة الحسابات...'
         )
 
 
-        await collectAccounts()
-
-
-        if (
-          rawAccounts.length > 0
-        ) {
-
-          setStatus(
-            `متصل — ${rawAccounts.length} account`
-          )
-
-        } else {
-
-          setStatus(
-            'متصل — لم تصل accounts[]'
-          )
-
-        }
+        scheduleCollection(
+          500
+        )
 
 
         return
@@ -1225,7 +1338,20 @@ if (
       }
 
 
+      /*
+       * إذا انقطع الاتصال:
+       * نمسح البيانات الحالية.
+       */
+
       if (wasConnected) {
+
+        currentAccounts =
+          new Set()
+
+        records = []
+
+        render()
+
 
         setStatus(
           'غير متصل'
@@ -1249,7 +1375,7 @@ if (
 ) {
 
   modal.subscribeEvents(
-    async (event) => {
+    (event) => {
 
       console.debug(
         '[WalletExporter] EVENT:',
@@ -1270,7 +1396,7 @@ if (
 
 
       // ------------------------------------------------------
-      // Connected
+      // CONNECT
       // ------------------------------------------------------
 
       if (
@@ -1286,34 +1412,19 @@ if (
 
 
         setStatus(
-          'تم الاتصال — قراءة accounts[]...'
+          'تم الاتصال — قراءة الحسابات...'
         )
 
 
-        await collectAccounts()
-
-
-        if (
-          rawAccounts.length > 0
-        ) {
-
-          setStatus(
-            `متصل — ${rawAccounts.length} account`
-          )
-
-        } else {
-
-          setStatus(
-            'متصل — لم تصل accounts[]'
-          )
-
-        }
+        scheduleCollection(
+          700
+        )
 
       }
 
 
       // ------------------------------------------------------
-      // Account changed
+      // ACCOUNT CHANGED
       // ------------------------------------------------------
 
       if (
@@ -1322,22 +1433,19 @@ if (
       ) {
 
         setStatus(
-          'تم تغيير الحساب — إعادة القراءة...'
+          'تم تغيير الحساب — تحديث...'
         )
 
 
-        await collectAccounts()
-
-
-        setStatus(
-          `متصل — ${rawAccounts.length} account`
+        scheduleCollection(
+          700
         )
 
       }
 
 
       // ------------------------------------------------------
-      // Network changed
+      // CHAIN CHANGED
       // ------------------------------------------------------
 
       if (
@@ -1349,22 +1457,46 @@ if (
       ) {
 
         setStatus(
-          'تم تغيير الشبكة — إعادة القراءة...'
+          'تم تغيير الشبكة — تحديث...'
         )
 
 
-        await collectAccounts()
-
-
-        setStatus(
-          `متصل — ${rawAccounts.length} account`
+        scheduleCollection(
+          700
         )
 
       }
 
 
       // ------------------------------------------------------
-      // Disconnect
+      // SESSION UPDATED
+      // ------------------------------------------------------
+
+      if (
+        eventType ===
+          'SESSION_UPDATE' ||
+
+        eventType ===
+          'SESSION_UPDATED' ||
+
+        eventType ===
+          'UPDATE'
+      ) {
+
+        setStatus(
+          'تم تحديث جلسة المحفظة — تحديث الحسابات...'
+        )
+
+
+        scheduleCollection(
+          700
+        )
+
+      }
+
+
+      // ------------------------------------------------------
+      // DISCONNECT
       // ------------------------------------------------------
 
       if (
@@ -1377,6 +1509,14 @@ if (
 
         wasConnected =
           false
+
+
+        currentAccounts =
+          new Set()
+
+        records = []
+
+        render()
 
 
         setStatus(
@@ -1433,10 +1573,14 @@ function escapeHtml(value) {
 
 function render() {
 
+  const total =
+    records.length
+
+
   if (count) {
 
     count.textContent =
-      records.length
+      total
 
   }
 
@@ -1447,7 +1591,7 @@ function render() {
 
 
   if (
-    records.length === 0
+    total === 0
   ) {
 
     table.innerHTML = `
@@ -1631,19 +1775,16 @@ if (clearButton) {
     'click',
     () => {
 
+      currentAccounts =
+        new Set()
+
       records = []
-
-      rawAccounts = []
-
-      lastSession = null
 
       render()
 
       setStatus(
         'تم مسح النتائج.'
       )
-
-      console.clear()
 
     }
   )
@@ -1652,7 +1793,7 @@ if (clearButton) {
 
 
 // ============================================================
-// INITIALIZE
+// INITIAL RENDER
 // ============================================================
 
 render()
